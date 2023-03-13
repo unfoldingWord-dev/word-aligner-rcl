@@ -1,8 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Token } from 'wordmap-lexer';
-import * as types from '../../common/WordCardTypes';
 import WordList from './WordList';
+import * as types from "../../common/WordCardTypes";
 
 /**
  * Renders a word bank with drag-drop support
@@ -14,11 +13,14 @@ class DroppableWordList extends React.Component {
       wordListScrollTop: null,
       selectedWordPositions: [],
       selectedWords: [],
+      isOver:false,
     };
     this.handleWordSelection = this.handleWordSelection.bind(this);
     this.clearWordSelections = this.clearWordSelections.bind(this);
     this.onEscapeKeyPressed = this.onEscapeKeyPressed.bind(this);
-    this.onWordDropped = this.onWordDropped.bind(this);
+    this.onDragOver = this.onDragOver.bind(this);
+    this.onDragLeave = this.onDragLeave.bind(this);
+    this.drop = this.drop.bind(this);
     this.onDrag = this.onDrag.bind(this);
   }
 
@@ -26,13 +28,13 @@ class DroppableWordList extends React.Component {
     if (this.props.chapter !== nextProps.chapter || this.props.verse !== nextProps.verse) {
       wordList.scrollTop = 0;
       this.setState({ wordListScrollTop: null });
-    } else if (!this.props.isOver) {
+    } else if (!this.state.isOver) {
       this.setState({ wordListScrollTop: wordList.scrollTop });
     }
   }
 
   setWordListScroll(wordList) {
-    if (!this.props.isOver && this.state.wordListScrollTop) {
+    if (!this.state.isOver && this.state.wordListScrollTop) {
       wordList.scrollTop = this.state.wordListScrollTop;
       this.setState({ wordListScrollTop: null });
     }
@@ -77,23 +79,70 @@ class DroppableWordList extends React.Component {
     this.setWordListScroll(wordList);
   }
 
+  onDragLeave(ev) {
+    this.setState({ isOver: false });
+    // console.log(`WordList.onDragLeave()`);
+  }
+
+  onDragOver(ev) {
+    const item = this.props.dragToken;
+    let canDrop = false;
+    if (item) {
+      const notPrimary = (item.type !== types.PRIMARY_WORD);
+      const fromWordBank = (Array.isArray(item)) || !item.type;
+
+      if (notPrimary && !fromWordBank && !this.props.reset) {
+        canDrop = true;
+      }
+      // console.log(`WordList.onDragOver()- canDrop=${canDrop}, item.type=${item?.type}, fromWordBank=${fromWordBank}`);
+    } else {
+      // console.log(`WordList.onDragOver()- no drag item, canDrop=${canDrop}`);
+    }
+
+    if (canDrop) {
+      ev.preventDefault();
+    }
+    this.setState({ isOver: canDrop })
+  }
+
+  drop(ev) {
+    const {
+      dragToken,
+      onWordDropped,
+    } = this.props;
+
+    ev.preventDefault();
+    this.props.onDropTargetToken(dragToken);
+    this.setState({ isOver: false })
+    // console.log(`WordList.drop()`, dragToken);
+  }
+
   onDrag(token) {
-    const words = [...this.state.selectedWords];
-    let dragging = token;
-    const index = words.findIndex(item => (
-      token.text === item.text &&
-      token.tokenOccurrence === item.tokenOccurrence
-    ));
+    if (token) {
+      const words = [...this.state.selectedWords];
+      let dragging = {
+        ...token,
+        type: null,
+      };
+      const index = words.findIndex(item => (
+        token.text === item.text &&
+        token.occurrence === item.occurrence
+      ));
 
-    if (index === -1) {
-      words.push(token);
+      if (index === -1) {
+        words.push(dragging);
+      }
+
+      if (words.length > 1) {
+        dragging = words
+      }
+
+      this.props.setDragToken(dragging);
+      // console.log(`WordList.onDrag()`, dragging);
+    } else {
+      // drag stopped
+      this.setState({ isOver: false })
     }
-
-    if (words.length > 1) {
-      dragging = words
-    }
-
-    this.props.setDragToken(dragging);
   }
 
   /**
@@ -104,11 +153,15 @@ class DroppableWordList extends React.Component {
     const { selectedWordPositions, selectedWords } = this.state;
     let positions = [...selectedWordPositions];
     let words = [...selectedWords];
+    token = {
+      ...token,
+      type: null,
+    }
 
-    const index = positions.indexOf(token.tokenPos);
+    const index = positions.indexOf(token.index);
 
     if (index === -1) {
-      positions.push(token.tokenPos);
+      positions.push(token.index);
       words.push(token);
     } else {
       positions.splice(index, 1);
@@ -131,21 +184,15 @@ class DroppableWordList extends React.Component {
     });
   }
 
-  onWordDropped() {
-    this.props.onDropTargetToken(this.props.dragToken);
-  }
-
   render() {
     const {
       words,
-      chapter,
-      verse,
-      isOver,
       direction,
       toolsSettings,
       setToolSettings,
       targetLanguageFont,
       dragToken,
+      reset,
     } = this.props;
     const { selectedWords, selectedWordPositions } = this.state;
     const { fontSize } = toolsSettings['WordList'] || {};
@@ -163,23 +210,26 @@ class DroppableWordList extends React.Component {
     }
 
     return (
-      <div id='wordList' style={wordListStyle}>
+      <div id='wordList'
+       style={wordListStyle}
+       onDrop={this.drop}
+       onDragOver={this.onDragOver}
+       onDragLeave={this.onDragLeave}
+      >
         <WordList
           toolSettings={toolsSettings['WordList']}
-          verse={verse}
           words={words}
-          isOver={isOver}
-          chapter={chapter}
           direction={direction}
           toolsSettings={toolsSettings}
           selectedWords={selectedWords}
           setToolSettings={setToolSettings}
           onWordClick={this.handleWordSelection}
           targetLanguageFont={targetLanguageFont}
-          onWordDropped={this.onWordDropped}
           selectedWordPositions={selectedWordPositions}
           dragToken={dragToken}
           setDragToken={this.onDrag}
+          reset={reset}
+          isOver={this.state.isOver}
         />
       </div>
     );
@@ -191,33 +241,19 @@ DroppableWordList.propTypes = {
   verse: PropTypes.oneOf(PropTypes.number, PropTypes.string),
   chapter: PropTypes.number,
   wordList: PropTypes.object,
-  isOver: PropTypes.bool.isRequired,
   targetLanguageFont: PropTypes.string,
   toolsSettings: PropTypes.object.isRequired,
   setToolSettings: PropTypes.func.isRequired,
-  dragToken: PropTypes.object.isRequired,
+  dragToken: PropTypes.oneOf([PropTypes.object, PropTypes.array]),
   setDragToken: PropTypes.func.isRequired,
   direction: PropTypes.oneOf(['ltr', 'rtl']),
   onDropTargetToken: PropTypes.func.isRequired,
-  words: PropTypes.arrayOf(PropTypes.instanceOf(Token)),
+  words: PropTypes.arrayOf(PropTypes.object),
 };
 
 DroppableWordList.defaultProps = {
   direction: 'ltr',
   reset: false,
-};
-
-/**
- * Handles drag events on the word bank
- */
-const dragHandler = {
-  drop(props, monitor) {
-    const item = monitor.getItem();
-
-    if (item.alignmentIndex !== undefined) {
-      props.onDropTargetToken(item.token, item.alignmentIndex);
-    }
-  },
 };
 
 export default DroppableWordList;

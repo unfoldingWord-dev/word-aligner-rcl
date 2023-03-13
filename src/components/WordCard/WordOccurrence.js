@@ -5,6 +5,8 @@ const regularHebrewStyles = {
   top: 0,
   opacity: '0.8',
   marginTop: '5.5px',
+  paddingLeft: '4px',
+  lineHeight: '0px',
 };
 
 const largeHebrewStyles = {
@@ -12,18 +14,22 @@ const largeHebrewStyles = {
   opacity: '0.8',
   marginTop: '5px',
   marginRight: '10px',
-  padding: '2px 0px 0px 0px',
+  padding: '2px 0px 0px 0px 4px',
+  lineHeight: '0px',
 };
 
 const regularGreekStyles = {
   top: '0px',
   opacity: '0.8',
+  paddingLeft: '4px',
+  lineHeight: '0px',
 };
 
 const largeGreekStyles = {
   top: '0px',
   opacity: '0.8',
-  padding: '2px 0px 0px',
+  padding: '2px 0px 0px 4px',
+  lineHeight: '0px',
 };
 
 /**

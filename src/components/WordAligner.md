@@ -6,7 +6,7 @@ import {
   areAlgnmentsComplete,
   parseUsfmToWordAlignerData
 } from "../utils/alignmentHelpers";
-import {convertVerseDataToUSFM } from "../utils/UsfmFileConversionHelpers";
+import {convertVerseDataToUSFM} from "../utils/UsfmFileConversionHelpers";
 import {NT_ORIG_LANG} from "../common/constants";
 
 // var alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
@@ -21,9 +21,9 @@ const translate = (key) => {
 const targetVerseUSFM = alignedVerseJson.usfm;
 const sourceVerseUSFM = originalVerseJson.usfm;
 
-const {wordListWords, verseAlignments} = parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM);
+const {targetWords, verseAlignments} = parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM);
 
-const alignmentComplete = areAlgnmentsComplete(wordListWords, verseAlignments);
+const alignmentComplete = areAlgnmentsComplete(targetWords, verseAlignments);
 console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
 
 const App = () => {
@@ -39,8 +39,9 @@ const App = () => {
     "tool": "wordAlignment",
     "groupId": "chapter_1"
   };
-  const showPopover = (key) => {
-    console.log(`showPopover(${key})`)
+  const showPopover = (PopoverTitle, wordDetails, positionCoord, rawData) => {
+    console.log(`showPopover()`, rawData)
+    window.prompt(`User clicked on ${JSON.stringify(rawData.token)}`)
   };
   const loadLexiconEntry = (key) => {
     console.log(`loadLexiconEntry(${key})`)
@@ -53,10 +54,10 @@ const App = () => {
 
   function onChange(results) {
     console.log(`WordAligner() - alignment changed, results`, results);// merge alignments into target verse and convert to USFM
-    const {wordListWords, verseAlignments} = results;
-    const verseUsfm = addAlignmentsToVerseUSFM(wordListWords, verseAlignments, targetVerseUSFM);
+    const {targetWords, verseAlignments} = results;
+    const verseUsfm = addAlignmentsToVerseUSFM(targetWords, verseAlignments, targetVerseUSFM);
     console.log(verseUsfm);
-    const alignmentComplete = areAlgnmentsComplete(wordListWords, verseAlignments);
+    const alignmentComplete = areAlgnmentsComplete(targetWords, verseAlignments);
     console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
   }
 
@@ -64,7 +65,7 @@ const App = () => {
     <div style={{height: '650px', width: '800px'}}>
       <WordAligner
         verseAlignments={verseAlignments}
-        wordListWords={wordListWords}
+        targetWords={targetWords}
         translate={translate}
         contextId={contextId}
         targetLanguageFont={targetLanguageFont}

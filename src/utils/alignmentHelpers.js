@@ -130,41 +130,44 @@ export function extractAlignmentsFromTargetVerse(alignedTargetVerse, sourceVerse
       const topWords = convertOccurrences(alignment.topWords);
       const bottomWords = convertOccurrences(alignment.bottomWords);
       return {
-        ...alignment,
-        topWords,
-        bottomWords,
-        sourceNgram: topWords.map(topWord => {
+        sourceNgram: topWords.map(topWord => { // word aligner uses sourceNgram instead of topWord
           if (originalLangWordList) {
             const pos = originalLangWordList.findIndex(item => (
               topWord.word === (item.word || item.text) &&
               topWord.occurrence === item.occurrence
             ));
-            return {
+            const newSource = {
               ...topWord,
-              position: pos,
               index: pos,
               text: topWord.text || topWord.word,
-            }
+            };
+            delete newSource.word
+            return newSource
           }
-          return {
+          const newSource = {
             ...topWord,
             text: topWord.text || topWord.word,
           };
+          delete newSource.word
+          delete newSource.position
+          return newSource
         }),
-        targetNgram: bottomWords.map(bottomWord => {
-          const word = bottomWord.text || bottomWord.word;
+        targetNgram: bottomWords.map(bottomWord => { // word aligner uses targetNgram instead of bottomWords
+          const word = bottomWord.text || bottomWord.word
           // noinspection EqualityComparisonWithCoercionJS
           const pos = targetTokens.findIndex(item => (
             word === item.text &&
             // eslint-disable-next-line eqeqeq
-            bottomWord.occurrence == item.tokenOccurrence
+            bottomWord.occurrence == item.occurrence
           ));
 
-          return {
+          const newTarget = {
             ...bottomWord,
             index: pos,
             text: word,
           };
+          delete newTarget.word
+          return newTarget;
         }),
       }
     })
@@ -222,8 +225,15 @@ export function  markTargetWordsAsDisabledIfAlreadyUsedForAlignments(targetWordL
         break;
       }
     }
-    token.disabled = isUsed;
-    return token;
+
+    const targetWord = { // exclude unneeded data
+      disabled: isUsed,
+      text: token.text,
+      occurrence: token.tokenOccurrence,
+      occurrences: token.tokenOccurrences,
+      index: token.tokenPos,
+    }
+    return targetWord;
   });
 }
 
@@ -239,8 +249,8 @@ export function addAlignmentsToVerseUSFM(wordBankWords, verseAlignments, targetV
   wordBank = wordBank.map(item => ({
     ...item,
     word: item.word || item.text,
-    occurrence: item.occurrence || item.tokenOccurrence,
-    occurrences: item.occurrences || item.tokenOccurrences,
+    occurrence: item.occurrence || item.occurrence,
+    occurrences: item.occurrences || item.occurrences,
   }))
   // remap sourceNgram:topWords, targetNgram:bottomWords,
   const alignments_ = verseAlignments.map(item => ({
@@ -270,7 +280,7 @@ export function addAlignmentsToVerseUSFM(wordBankWords, verseAlignments, targetV
  * parse target language and original language USFM text into the structures needed by the word-aligner
  * @param {string} targetVerseUSFM
  * @param {string|null} sourceVerseUSFM
- * @returns {{wordListWords: *[], verseAlignments: *}}
+ * @returns {{targetWords: *[], verseAlignments: *}}
  */
 export function parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM) {
   let targetTokens = [];
@@ -279,11 +289,11 @@ export function parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM) {
   }
 
   const sourceVerseObjects = sourceVerseUSFM && usfmVerseToJson(sourceVerseUSFM);
-  let wordListWords = [];
+  let targetWords = [];
   const targetVerseAlignments = extractAlignmentsFromTargetVerse(targetVerseUSFM, sourceVerseObjects);
   const verseAlignments = targetVerseAlignments.alignments;
-  wordListWords = markTargetWordsAsDisabledIfAlreadyUsedForAlignments(targetTokens, verseAlignments);
-  return {wordListWords, verseAlignments};
+  targetWords = markTargetWordsAsDisabledIfAlreadyUsedForAlignments(targetTokens, verseAlignments);
+  return {targetWords, verseAlignments};
 }
 
 /**
@@ -324,10 +334,10 @@ function handleAddedWordsInNewText(targetWordList, wordBankList, verseAlignments
   for (const targetToken of targetWordList) {
     const pos = wordBankList.findIndex(word => (
       word.text === targetToken.text &&
-      word.tokenOccurrence === targetToken.tokenOccurrence
+      word.occurrence === targetToken.occurrence
     ))
     if (pos < 0) {
-      const occurrences = targetToken.tokenOccurrences;
+      const occurrences = targetToken.occurrences;
       const tokenWord = targetToken.text;
       // update occurrence count for all aligned instances of this word
       for (const alignment of verseAlignments) {
@@ -357,11 +367,11 @@ function handleDeletedWords(verseAlignments, targetWordList) {
       const word = targetWord.text;
       for (const targetToken of targetWordList) {
         if (targetToken.text === word) {
-          if (targetWord.occurrence > targetToken.tokenOccurrences) {
+          if (targetWord.occurrence > targetToken.occurrences) {
             delete_.push(i); // extra aligned word
-          } else if (targetWord.occurrences !== targetToken.tokenOccurrences) {
+          } else if (targetWord.occurrences !== targetToken.occurrences) {
             // fixup counts
-            targetWord.occurrences = targetToken.tokenOccurrences;
+            targetWord.occurrences = targetToken.occurrences;
           }
           wordFound = true;
           break;
@@ -386,11 +396,11 @@ function handleDeletedWords(verseAlignments, targetWordList) {
  */
 export function updateAlignmentsToTargetVerse(targetVerseObjects, newTargetVerse) {
   let targetVerseText = convertVerseDataToUSFM(targetVerseObjects);
-  let { wordListWords, verseAlignments } = parseUsfmToWordAlignerData(targetVerseText, null);
+  let { targetWords, verseAlignments } = parseUsfmToWordAlignerData(targetVerseText, null);
   const targetTokens = getWordListFromVerseObjects(usfmVerseToJson(newTargetVerse));
-  handleAddedWordsInNewText(targetTokens, wordListWords, verseAlignments);
+  handleAddedWordsInNewText(targetTokens, targetWords, verseAlignments);
   handleDeletedWords(verseAlignments, targetTokens);
-  targetVerseText = addAlignmentsToVerseUSFM(wordListWords, verseAlignments, newTargetVerse);
+  targetVerseText = addAlignmentsToVerseUSFM(targetWords, verseAlignments, newTargetVerse);
   if (targetVerseText === null) {
     console.log(`updateAlignmentsToTargetVerse() - alignment FAILED for ${newTargetVerse}, removing all alignments`);
     targetVerseText = newTargetVerse;

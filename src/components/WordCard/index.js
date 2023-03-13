@@ -119,15 +119,15 @@ class WordCard extends React.Component {
       targetLanguageFontClassName,
       disabled,
       onDragStart,
+      onDragEnd,
     } = this.props;
     const styles = makeStyles(this.props);
     return (
       <React.Fragment>
           <div style={{ flex: 1 }}
-            onMouseEnter={this.handleMouseEnter}
-            onMouseLeave={this.handleMouseLeave}
             draggable={!disabled}
             onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
           >
             <div style={styles.root}>
               <span style={{
@@ -164,6 +164,7 @@ WordCard.propTypes = {
   onClick: PropTypes.func,
   onCancel: PropTypes.func,
   onDragStart: PropTypes.func,
+  onDragEnd: PropTypes.func,
   style: PropTypes.object,
   occurrence: PropTypes.number,
   occurrences: PropTypes.number,

@@ -48,22 +48,27 @@ class AlignmentGrid extends Component {
     }
   }
 
-  onDrag(token, alignmentIndex, isPrimary) {
-    this.setState({
-      draggedAlignment: alignmentIndex,
-      draggedPrimaryAlignment: isPrimary ? alignmentIndex : -1,
-    });
-    this.props.setDragToken(token);
+  onDrag(token, alignmentIndex, dragFinished, isPrimary) {
+    if (dragFinished) {
+      this.setState({
+        draggedAlignment: -1,
+        draggedPrimaryAlignment: -1,
+      });
+    } else {
+      this.setState({
+        draggedAlignment: alignmentIndex,
+        draggedPrimaryAlignment: isPrimary ? alignmentIndex : -1,
+      });
+      this.props.setDragToken(token);
+    }
   }
 
   render() {
     const {
       translate,
       lexicons,
-      onCancelSuggestion,
       sourceDirection,
       targetDirection,
-      onAcceptTokenSuggestion,
       sourceStyle,
       alignments,
       contextId,
@@ -73,6 +78,7 @@ class AlignmentGrid extends Component {
       loadLexiconEntry,
       targetLanguageFont,
       dragToken,
+      dragItemType,
     } = this.props;
 
     if (!contextId) {
@@ -94,14 +100,11 @@ class AlignmentGrid extends Component {
         {
           alignments.map((alignment, key) => (
             <React.Fragment key={key}>
-
               <AlignmentCard
                 translate={translate}
                 sourceStyle={sourceStyle}
                 sourceDirection={sourceDirection}
                 targetDirection={targetDirection}
-                onCancelTokenSuggestion={onCancelSuggestion}
-                onAcceptTokenSuggestion={onAcceptTokenSuggestion}
                 alignmentIndex={alignment.index}
                 isSuggestion={alignment.isSuggestion}
                 targetNgram={alignment.targetNgram}
@@ -114,7 +117,8 @@ class AlignmentGrid extends Component {
                 fontSize={fontSize}
                 targetLanguageFontClassName={targetLanguageFontClassName}
                 dragToken={dragToken}
-                setDragToken={(token, isPrimary) => this.onDrag(token, key, isPrimary)}
+                dragItemType={dragItemType}
+                setDragToken={(token, dragFinished, isPrimary) => this.onDrag(token, key, dragFinished, isPrimary)}
               />
               {/* placeholder for un-merging primary words */}
               <AlignmentCard
@@ -134,7 +138,7 @@ class AlignmentGrid extends Component {
                 fontSize={fontSize}
                 targetLanguageFontClassName={targetLanguageFontClassName}
                 dragToken={dragToken}
-                setDragToken={(token, isPrimary) => this.onDrag(token, key, isPrimary)}
+                setDragToken={(token, dragFinished, isPrimary) => this.onDrag(token, key, dragFinished, isPrimary)}
                 showAsDrop={this.getShowAsDrop(key, alignment)}
               />
             </React.Fragment>
@@ -146,7 +150,7 @@ class AlignmentGrid extends Component {
 
   getShowAsDrop(key, alignment) {
     const isCurrentKey = this.state.draggedPrimaryAlignment === key;
-    const moreTheOneItem = alignment.targetNgram.length > 1;
+    const moreTheOneItem = alignment.sourceNgram.length > 1;
     const showDrop = isCurrentKey && moreTheOneItem;
     return showDrop;
   }
@@ -159,11 +163,10 @@ class AlignmentGrid extends Component {
       for (let i = 0; i < item.length; i++) {
         onDropTargetToken(item[i], alignmentIndex, -1);
       }
-    } else if (item.type === types.SECONDARY_WORD) {
-      // drop single token
-      onDropTargetToken(item, alignmentIndex, srcAlignmentIndex);
     } else if (item.type === types.PRIMARY_WORD) {
       onDropSourceToken(item, alignmentIndex, srcAlignmentIndex, startNew);
+    } else { // drop single secondary token
+      onDropTargetToken(item, alignmentIndex, srcAlignmentIndex);
     }
 
     this.setState({
@@ -177,8 +180,6 @@ AlignmentGrid.propTypes = {
   reset: PropTypes.bool,
   onDropTargetToken: PropTypes.func.isRequired,
   onDropSourceToken: PropTypes.func.isRequired,
-  onCancelSuggestion: PropTypes.func.isRequired,
-  onAcceptTokenSuggestion: PropTypes.func.isRequired,
   sourceStyle: PropTypes.object.isRequired,
   alignments: PropTypes.array.isRequired,
   contextId: PropTypes.object,
@@ -191,7 +192,8 @@ AlignmentGrid.propTypes = {
   showPopover: PropTypes.func.isRequired,
   loadLexiconEntry: PropTypes.func.isRequired,
   targetLanguageFont: PropTypes.string,
-  dragToken: PropTypes.object.isRequired,
+  dragToken: PropTypes.oneOf([PropTypes.object, PropTypes.array]),
+  dragItemType: PropTypes.string,
   setDragToken: PropTypes.func.isRequired,
 };
 

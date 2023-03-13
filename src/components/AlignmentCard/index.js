@@ -1,6 +1,5 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { Token } from 'wordmap-lexer';
 import * as types from '../../common/WordCardTypes';
 import SecondaryToken from '../SecondaryToken';
 import PrimaryToken from '../PrimaryToken';
@@ -25,7 +24,7 @@ const styles = {
  * Determines if a word can be dropped
  * @param dropTargetProps
  * @param dragSourceProps
- * @return {boolean}
+ * @return {boolean} true if target can be dropped on this card
  */
 export const canDropPrimaryToken = (dropTargetProps, dragSourceProps) => {
   const emptyTarget = dropTargetProps.sourceNgram.length === 0;
@@ -62,7 +61,6 @@ export const canDropPrimaryToken = (dropTargetProps, dragSourceProps) => {
   return false; // any other destinations are not allowed
 };
 
-
 /**
  * Renders the alignment of primary and secondary words/phrases
  */
@@ -73,7 +71,12 @@ class DroppableAlignmentCard extends Component {
     this._handleAcceptSuggestion = this._handleAcceptSuggestion.bind(this);
     this.drop = this.drop.bind(this);
     this.onDrag = this.onDrag.bind(this);
-    this.allowDrop = this.allowDrop.bind(this);
+    this.onDragOver = this.onDragOver.bind(this);
+    this.onDragLeave = this.onDragLeave.bind(this);
+    this.state = {
+      isOver: false,
+      canDrop: false,
+    };
   }
 
   _handleCancelSuggestion(token) {
@@ -97,23 +100,46 @@ class DroppableAlignmentCard extends Component {
     const token = this.props.dragToken;
     const alignmentIndex = this.props.alignmentIndex;
     this.props.onDrop(token, alignmentIndex);
+    this.setState({ isOver: false, canDrop: false })
   }
 
-  allowDrop(ev) {
-    ev.preventDefault();
+  onDragLeave(ev) {
+    this.setState({ isOver: false, canDrop: false })
   }
 
-  onDrag(token, isPrimary) {
-    this.props.setDragToken(token, isPrimary)
+  onDragOver(ev) {
+    const item = this.props.dragToken;
+    const alignmentEmpty = (this.props.sourceNgram.length === 0 &&
+      this.props.targetNgram.length === 0);
+    let canDrop = false;
+    const fromWordBank = (Array.isArray(item)) || !item.type;
+
+    if (fromWordBank || (item.type === types.SECONDARY_WORD)) {
+      if (fromWordBank) {
+        canDrop = !alignmentEmpty;
+      } else {
+        const alignmentPositionDelta = this.props.alignmentIndex - item.alignmentIndex;
+        canDrop = alignmentPositionDelta !== 0 && !alignmentEmpty;
+      }
+    } else if (item.type === types.PRIMARY_WORD) {
+      canDrop = canDropPrimaryToken(this.props, item);
+    }
+
+    if (canDrop) {
+      ev.preventDefault();
+    }
+    this.setState({ isOver: true, canDrop })
+  }
+
+  onDrag(token, dragFinished, isPrimary) {
+    this.props.setDragToken(token, dragFinished, isPrimary)
   }
 
   render() {
     const {
       translate,
       lexicons,
-      canDrop,
       dragItemType,
-      isOver,
       targetNgram,
       sourceNgram,
       alignmentIndex,
@@ -128,11 +154,11 @@ class DroppableAlignmentCard extends Component {
       targetLanguageFontClassName,
       showAsDrop,
     } = this.props;
-    const acceptsTop = canDrop && dragItemType === types.PRIMARY_WORD;
-    const acceptsBottom = canDrop && dragItemType === types.SECONDARY_WORD;
+    const acceptsTop = this.state.canDrop && dragItemType === types.PRIMARY_WORD;
+    const acceptsBottom = this.state.canDrop && dragItemType === types.SECONDARY_WORD;
 
-    const hoverTop = isOver && acceptsTop;
-    const hoverBottom = isOver && acceptsBottom;
+    const hoverTop = this.state.isOver && acceptsTop;
+    const hoverBottom = this.state.isOver && acceptsBottom;
 
     const emptyAlignment = sourceNgram.length === 0 && targetNgram.length === 0;
 
@@ -151,7 +177,7 @@ class DroppableAlignmentCard extends Component {
         alignmentIndex={alignmentIndex}
         showPopover={showPopover}
         loadLexiconEntry={loadLexiconEntry}
-        setDragToken={(token) => this.onDrag(token, true)}
+        setDragToken={(token, dragFinished) => this.onDrag(token, dragFinished, true)}
       />
     ));
     const bottomWordCards = targetNgram.map((token, index) => (
@@ -163,7 +189,7 @@ class DroppableAlignmentCard extends Component {
         onCancel={this._handleCancelSuggestion}
         onAccept={this._handleAcceptSuggestion}
         targetLanguageFontClassName={targetLanguageFontClassName}
-        setDragToken={(token) => this.onDrag(token, false)}
+        setDragToken={(token, dragFinished) => this.onDrag(token, dragFinished, false)}
       />
     ));
 
@@ -172,8 +198,9 @@ class DroppableAlignmentCard extends Component {
     } else {
       return (
         <div
-          onDragOver={this.allowDrop}
+          onDragOver={this.onDragOver}
           onDrop={this.drop}
+          onDragLeave={this.onDragLeave}
         >
           <AlignmentCard targetTokenCards={bottomWordCards}
             targetDirection={targetDirection}
@@ -197,12 +224,10 @@ DroppableAlignmentCard.propTypes = {
   placeholderPosition: PropTypes.string,
   sourceStyle: PropTypes.object.isRequired,
   dragItemType: PropTypes.string,
-  isOver: PropTypes.bool.isRequired,
-  canDrop: PropTypes.bool.isRequired,
-  sourceNgram: PropTypes.arrayOf(PropTypes.instanceOf(Token)).isRequired,
-  targetNgram: PropTypes.arrayOf(PropTypes.instanceOf(Token)).isRequired,
+  sourceNgram: PropTypes.arrayOf(PropTypes.object).isRequired,
+  targetNgram: PropTypes.arrayOf(PropTypes.object).isRequired,
   alignmentIndex: PropTypes.number.isRequired,
-  isSuggestion: PropTypes.bool.isRequired,
+  isSuggestion: PropTypes.bool,
   onDrop: PropTypes.func.isRequired,
   lexicons: PropTypes.object.isRequired,
   sourceDirection: PropTypes.oneOf(['ltr', 'rtl']),
@@ -211,7 +236,7 @@ DroppableAlignmentCard.propTypes = {
   targetLanguageFontClassName: PropTypes.string,
   showPopover: PropTypes.func.isRequired,
   loadLexiconEntry: PropTypes.func.isRequired,
-  dragToken: PropTypes.object.isRequired,
+  dragToken: PropTypes.oneOf([PropTypes.object, PropTypes.array]),
   setDragToken: PropTypes.func.isRequired,
   showAsDrop: PropTypes.bool,
 };
@@ -220,33 +245,6 @@ DroppableAlignmentCard.defaultProps = {
   sourceDirection: 'ltr',
   targetDirection: 'ltr',
   sourceStyle: { fontSize: '100%' },
-};
-
-const dragHandler = {
-  canDrop(props, monitor) {
-    const item = monitor.getItem();
-    const alignmentEmpty = (props.sourceNgram.length === 0 &&
-      props.targetNgram.length === 0);
-    let canDrop = false;
-
-    if (item.type === types.SECONDARY_WORD) {
-      if (item.alignmentIndex === undefined) {
-        // TRICKY: tokens from the word list will not have an alignment
-        canDrop = !alignmentEmpty;
-      } else {
-        const alignmentPositionDelta = props.alignmentIndex - item.alignmentIndex;
-        canDrop = alignmentPositionDelta !== 0 && !alignmentEmpty;
-      }
-      return canDrop;
-    }
-
-    if (item.type === types.PRIMARY_WORD) {
-      return canDropPrimaryToken(props, item);
-    }
-  },
-  drop(props, monitor) {
-    props.onDrop(monitor.getItem());
-  },
 };
 
 export default DroppableAlignmentCard;

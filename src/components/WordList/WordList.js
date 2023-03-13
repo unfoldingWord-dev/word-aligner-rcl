@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import {Token} from 'wordmap-lexer';
+import * as types from '../../common/WordCardTypes';
 import SecondaryToken from '../SecondaryToken';
 import {getFontClassName} from '../../common/fontUtils';
 
@@ -12,7 +12,6 @@ import {getFontClassName} from '../../common/fontUtils';
  * @param {object[]} selectedWords - an array of words that are selected
  * @param {function} onWordClick - called when a word in the list is clicked
  * @param {Token[]} words,
- * @param {boolean} isOver
  * @return {*}
  * @constructor
  */
@@ -21,8 +20,6 @@ class WordList extends React.Component {
     super(props);
     this.listRef = React.createRef();
     this.isSelected = this.isSelected.bind(this);
-    this.allowDrop = this.allowDrop.bind(this);
-    this.drop = this.drop.bind(this);
     this.state = {
       width: 0,
       height: 0,
@@ -38,12 +35,12 @@ class WordList extends React.Component {
     const { selectedWordPositions } = this.props;
 
     return selectedWordPositions &&
-      selectedWordPositions.indexOf(token.tokenPos) !== -1;
+      selectedWordPositions.indexOf(token.index) !== -1;
   }
 
   // eslint-disable-next-line no-unused-vars
   getSnapshotBeforeUpdate(prevProps, prevState) {
-    if (!prevProps.isOver) {
+    if (!prevState.isOver && this.listRef.current) {
       return {
         height: this.listRef.current.scrollHeight,
         width: this.listRef.current.clientWidth,
@@ -63,27 +60,16 @@ class WordList extends React.Component {
     if (notZero && changed) {
       this.setState(snapshot);
     }
-  }
 
-  allowDrop(ev) {
-    ev.preventDefault();
-  }
-
-  drop(ev) {
-    const {
-      dragToken,
-      onWordDropped,
-    } = this.props;
-
-    ev.preventDefault();
-    onWordDropped(dragToken);
-
+    if (this.props.reset && (prevProps.reset !== this.props.reset)) {
+      this.setState({canDrop: false});
+      console.log(`WordList.componentDidUpdate()- reset`);
+    }
   }
 
   render() {
     const {
       words,
-      isOver,
       direction,
       onWordClick,
       selectedWords,
@@ -91,6 +77,7 @@ class WordList extends React.Component {
       targetLanguageFont,
       dragToken,
       setDragToken,
+      isOver,
     } = this.props;
     const { width, height } = this.state;
 
@@ -110,9 +97,7 @@ class WordList extends React.Component {
       return (
         <React.Fragment>
           <div ref={this.listRef}
-               style={{ height: '100%' }}
-               onDrop={this.drop}
-               onDragOver={this.allowDrop}
+            style={{ height: '100%' }}
           >
             <div style={{
               display: 'flex', justifyContent: 'flex-end', padding: '0px 5px 5px',
@@ -145,18 +130,18 @@ class WordList extends React.Component {
 
 WordList.propTypes = {
   onWordClick: PropTypes.func,
-  onWordDropped: PropTypes.func,
   selectedWords: PropTypes.array,
-  isOver: PropTypes.bool.isRequired,
   targetLanguageFont: PropTypes.string,
   direction: PropTypes.oneOf(['ltr', 'rtl']),
   toolsSettings: PropTypes.object.isRequired,
   setToolSettings: PropTypes.func.isRequired,
-  dragToken: PropTypes.object.isRequired,
+  dragToken: PropTypes.oneOf([PropTypes.object, PropTypes.array]),
   setDragToken: PropTypes.func.isRequired,
   toolSettings: PropTypes.object.isRequired,
   selectedWordPositions: PropTypes.arrayOf(PropTypes.number),
-  words: PropTypes.arrayOf(PropTypes.instanceOf(Token)).isRequired,
+  words: PropTypes.arrayOf(PropTypes.object).isRequired,
+  reset: PropTypes.bool.isRequired,
+  isOver: PropTypes.bool.isRequired,
 };
 
 WordList.defaultProps = {

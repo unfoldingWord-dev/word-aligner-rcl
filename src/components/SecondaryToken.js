@@ -1,6 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Token } from 'wordmap-lexer';
 // load drag preview images
 import * as types from '../common/WordCardTypes';
 import Word from './WordCard';
@@ -13,7 +12,7 @@ import Word from './WordCard';
  */
 function containsToken(list, token) {
   for (let i = 0; i < list.length; i++) {
-    if (list[i].tokenPos === token.tokenPos) {
+    if (list[i].index === token.index) {
       return true;
     }
   }
@@ -34,6 +33,7 @@ class SecondaryToken extends React.Component {
     this.handleCancel = this.handleCancel.bind(this);
     this.handleClick = this.handleClick.bind(this);
     this.onDragStart = this.onDragStart.bind(this);
+    this.onDragEnd = this.onDragEnd.bind(this);
   }
 
   handleCancel() {
@@ -75,9 +75,10 @@ class SecondaryToken extends React.Component {
 
     const token_ = {
       ...token,
-      type: types.SECONDARY_WORD
+      type: types.SECONDARY_WORD,
+      alignmentIndex: this.props.alignmentIndex,
     };
-    setDragToken && setDragToken(token_);
+    setDragToken && setDragToken(token_, false);
 
     let tokens = [];
 
@@ -97,6 +98,14 @@ class SecondaryToken extends React.Component {
       // TRICKY: always populate tokens.
       tokens.push(token);
     }
+  }
+
+  /**
+   * called when drag is finished
+   * @param e
+   */
+  onDragEnd(e) {
+    this.props.setDragToken && this.props.setDragToken(null, true);
   }
 
   render() {
@@ -129,6 +138,7 @@ class SecondaryToken extends React.Component {
           occurrences={token.occurrences}
           targetLanguageFontClassName={targetLanguageFontClassName}
           onDragStart={this.onDragStart}
+          onDragEnd={this.onDragEnd}
         />
       </div>
     );
@@ -149,12 +159,9 @@ SecondaryToken.propTypes = {
   onClick: PropTypes.func,
   onCancel: PropTypes.func,
   onAccept: PropTypes.func,
-  token: PropTypes.instanceOf(Token).isRequired,
-  connectDragPreview: PropTypes.func.isRequired,
-  connectDragSource: PropTypes.func.isRequired,
-  dragToken: PropTypes.object.isRequired,
+  token: PropTypes.object.isRequired,
+  dragToken: PropTypes.object,
   setDragToken: PropTypes.func.isRequired,
-  alignmentIndex: PropTypes.number,
   direction: PropTypes.oneOf(['ltr', 'rtl']),
   disabled: PropTypes.bool,
   targetLanguageFontClassName: PropTypes.string,
@@ -167,7 +174,6 @@ SecondaryToken.defaultProps = {
   },
   onAccept: () => {
   },
-  alignmentIndex: undefined,
   disabled: false,
   fontScale: 100,
   selectedTokens: [],
@@ -218,7 +224,7 @@ const dragHandler = {
   },
   isDragging(props, monitor) {
     const item = monitor.getItem();
-    return item.token.tokenPos === props.token.tokenPos;
+    return item.token.index === props.token.index;
   },
 };
 

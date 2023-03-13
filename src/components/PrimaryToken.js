@@ -2,7 +2,6 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { default as WordLexiconDetails } from 'tc-ui-toolkit/lib/WordLexiconDetails/index';
 import * as lexiconHelpers from 'tc-ui-toolkit/lib/ScripturePane/helpers/lexiconHelpers';
-import { Token } from 'wordmap-lexer';
 import * as types from '../common/WordCardTypes';
 // components
 import Word from './WordCard';
@@ -19,7 +18,6 @@ const internalStyle = {
  * @see WordCard
  *
  * @property wordObject
- * @property alignmentIndex
  * @property style
  * @property resourcesReducer
  *
@@ -31,6 +29,7 @@ class PrimaryToken extends Component {
     this._handleOut = this._handleOut.bind(this);
     this._handleOver = this._handleOver.bind(this);
     this.onDragStart = this.onDragStart.bind(this);
+    this.onDragEnd = this.onDragEnd.bind(this);
     this.state = {
       hover: false,
       anchorEl: null,
@@ -53,9 +52,19 @@ class PrimaryToken extends Component {
 
     const token_ = {
       ...token,
-      type: types.PRIMARY_WORD
+      type: types.PRIMARY_WORD,
+      alignmentIndex: this.props.alignmentIndex,
+      alignmentLength: this.props.alignmentLength,
     };
-    setDragToken && setDragToken(token_);
+    setDragToken && setDragToken(token_, false);
+  }
+
+  /**
+   * called when drag is finished
+   * @param e
+   */
+  onDragEnd(e) {
+    this.props.setDragToken && this.props.setDragToken(null, true);
   }
 
   /**
@@ -90,7 +99,6 @@ class PrimaryToken extends Component {
       direction,
       isDragging,
       setDragToken,
-      connectDragSource,
     } = this.props;
     const { hover } = this.state;
 
@@ -107,6 +115,7 @@ class PrimaryToken extends Component {
           occurrences={token.occurrences}
           style={{ ...internalStyle.word, ...style }}
           onDragStart={this.onDragStart}
+          onDragEnd={this.onDragEnd}
         />
       </div>
     );
@@ -147,32 +156,30 @@ class PrimaryToken extends Component {
   }
 }
 
+PrimaryToken.defaultProps = {
+  alignmentLength: 1,
+  canDrag: true,
+  direction: 'ltr',
+  isDragging: false,
+  style: {},
+  wordIndex: 0,
+};
+
 PrimaryToken.propTypes = {
   fontSize: PropTypes.number,
   translate: PropTypes.func.isRequired,
   wordIndex: PropTypes.number,
   alignmentLength: PropTypes.number,
   canDrag: PropTypes.bool,
-  token: PropTypes.instanceOf(Token),
-  alignmentIndex: PropTypes.number.isRequired,
+  token: PropTypes.object,
   style: PropTypes.object,
   lexicons: PropTypes.object.isRequired,
-  dragPreview: PropTypes.func.isRequired,
-  connectDragSource: PropTypes.func.isRequired,
   direction: PropTypes.oneOf(['ltr', 'rtl']),
   isDragging: PropTypes.bool.isRequired,
-  setDragToken: PropTypes.bool.isRequired,
+  setDragToken: PropTypes.func.isRequired,
   isHebrew: PropTypes.bool.isRequired,
   showPopover: PropTypes.func.isRequired,
   loadLexiconEntry: PropTypes.func.isRequired,
-};
-
-PrimaryToken.defaultProps = {
-  alignmentLength: 1,
-  wordIndex: 0,
-  canDrag: true,
-  direction: 'ltr',
-  style: {},
 };
 
 export default PrimaryToken;

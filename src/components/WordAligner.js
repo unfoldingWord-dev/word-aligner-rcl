@@ -4,16 +4,20 @@ import WordList from './WordList/index';
 import AlignmentGrid from "./AlignmentGrid";
 import {OT_ORIG_LANG} from "../common/constants";
 import delay from "../utils/delay";
+import * as types from '../common/WordCardTypes';
 
+// on alignment changes, identifies possible source and destination
 const TARGET_WORD_BANK=`Target Word Bank`;
 const GRID=`Alignment Grid`;
-const MERGE_ALIGNMENTS=`Alignment Grid - merge alignments`;
-const NEW_ALIGNMENT=`Alignment Grid - new alignment`;
-const UNALIGN_TARGET_WORD = `Unalign Target Word`;
-const ALIGN_BOTTOM_WORD = `Align Bottom Word`;
-const ALIGN_TOP_WORDS = `Align Top Word`;
-const lexiconCache_ = {};
 
+// On alignment change identifies event type
+const MERGE_ALIGNMENT_CARDS=`Alignment Grid - merge alignments`;
+const CREATE_NEW_ALIGNMENT_CARD=`Alignment Grid - new alignment`;
+const UNALIGN_TARGET_WORD = `Unalign Target Word`;
+const ALIGN_TARGET_WORD = `Align Target Word`;
+const ALIGN_SOURCE_WORD = `Align Source Word`;
+
+const lexiconCache_ = {};
 const styles = {
   container: {
     display: 'flex',
@@ -72,7 +76,7 @@ function findInWordList(wordList, token) {
   for (let i = 0, l = wordList.length; i < l; i++) {
     const item = wordList[i];
     if (item.text === token.text &&
-      item.tokenOccurrence === token.tokenOccurrence) {
+      item.occurrence === token.occurrence) {
       found = i;
       break;
     }
@@ -122,32 +126,23 @@ function findAlignment(alignments, token) {
 /**
  * convert from token format to format used by word alignment
  * @param {object} token
- * @return {*&{occurrences: *, suggestion: boolean, index: *, occurrence: *, position: *, text}}
+ * @return {*&{occurrences: *, suggestion: boolean, index: *, occurrence: *, text}}
  */
 function tokenToAlignment(token) {
   return {
     ...token,
-    index: token.tokenPos,
-    occurrence: token.tokenOccurrence,
-    occurrences: token.tokenOccurrences,
-    position: token.tokenPos,
     suggestion: false,
-    text: token.text,
   }
 }
 
 /**
  * const from word alignment fromat to token format
  * @param {object} alignment
- * @return {*&{tokenOccurrence, tokenOccurrences, text, tokenPos}}
+ * @return {*&{occurrence, occurrences, text, index}}
  */
 function alignmentToToken(alignment) {
-  return {
+  return { // make shallow copy
     ...alignment,
-    tokenPos: alignment.index,
-    tokenOccurrence: alignment.occurrence,
-    tokenOccurrences: alignment.occurrences,
-    text: alignment.text,
   }
 }
 
@@ -230,14 +225,68 @@ const indexComparator = (a, b) => a.index - b.index;
  */
 
 /**
+ * @typedef TargetWordType
+ * @param {number} index - position in the list of words for the verse
+ * @property {number} occurrence - the specific occurrence of the word in verse
+ * @property {number} occurrences - total occurrences of the word in verse
+ * @property {string} text - text of the word itself
+ */
+
+/**
+ * @typedef TargetWordBankType
+ * @param {number} index - position in the list of words for the verse
+ * @property {number} occurrence - the specific occurrence of the word in verse
+ * @property {number} occurrences - total occurrences of the word in verse
+ * @property {string} text - text of the word itself
+ * @property {boolean} disabled - if true then word is already used in alignment
+ */
+
+/**
+ * @typedef SourceWordType
+ * @param {number} index - position in the list of words for the verse
+ * @property {number} occurrence - the specific occurrence of the word in verse
+ * @property {number} occurrences - total occurrences of the word in verse
+ * @property {string} text - text of the word itself
+ * @property {string} lemma - lemma for the word
+ * @property {string} morph - morph for the word
+ * @property {string} strong - strong for the word.  Could be multipart separated by colons such as `c:H4191`
+ */
+
+/**
+ * @typedef AlignmentType
+ * @param {array[SourceWordType]} sourceNgram - list of the source words for an alignment
+ * @param {array[TargetWordType]} targetNgram - list of the target words for an alignment
+ */
+
+/**
  * @callback OnChangeCB
- * @param {object} details
- * @param {string} details.type is type of alignment change
- * @param {string} details.source - source(s) of the word being changed
- * @param {string} details.destination - destination of the word being changed
- * @param {array} details.verseAlignments - array of current verse alignments
- * @param {array} details.wordListWords - array of current target words
+ * @param {object} details - a change details object with the following fields:
+ * @param {string} details.type is type of alignment change (MERGE_ALIGNMENT_CARDS,
+ *      CREATE_NEW_ALIGNMENT_CARD, UNALIGN_TARGET_WORD, ALIGN_TARGET_WORD, or ALIGN_SOURCE_WORD)
+ * @param {string} details.source - source(s) of the word being changed (TARGET_WORD_BANK or GRID)
+ * @param {string} details.destination - destination of the word being changed  (TARGET_WORD_BANK or GRID)
+ * @param {array[AlignmentType]} details.verseAlignments - array of the latest verse alignments
+ * @param {array[TargetWordBankType]} details.targetWords - array of the latest target words
  * @param {ContextID} details.contextId - context of current verse
+ */
+
+/**
+ * @typedef StrongNumsType
+ * @param {object} [strongNums] - key is the strong's number
+ * @param {string} [strongNums].brief - short note about strongs number
+ * @param {string} [strongNums].long - long version of note about strongs number
+ * @param {string} [strongNums].repo - source repo for the lexicon such as `en_uhl`
+ */
+
+/**
+ * @typedef StrongsType
+ * @param {StrongNumsType} [strongNums] - optional Hebrew lexicon
+ */
+
+/**
+ * @typedef LexiconType
+ * @param {StrongsType} uhl - optional Hebrew lexicon
+ * @param {StrongsType} ugl - optional Greek lexicon
  */
 
 /**
@@ -245,6 +294,9 @@ const indexComparator = (a, b) => a.index - b.index;
  * @param {object} PopoverTitle - JSX to show on title of popover
  * @param {object} wordDetails - JSX to show on body of popover
  * @param {object} positionCoord - where to position to popover
+ * @param {object} rawData - where to position to popover
+ * @param {SourceWordType} rawData.token - where to position to popover
+ * @param {LexiconType} rawData.lexiconData - current lexicon data cache
  */
 
 /**
@@ -257,7 +309,7 @@ const indexComparator = (a, b) => a.index - b.index;
  * @param {(book, chapter, verse)} contextId - current verse context
  * @param {object|null} lexiconCache - cache for lexicon data
  * @param {LoadLexiconEntryCB} loadLexiconEntry - callback to load lexicon for language and strong number
- * @param {OnChangeCB} onChange - optional callback for whenever alignment changed
+ * @param {OnChangeCB} onChange - optional callback for whenever alignment changed.  Contains the specific operation performed as well as the latest state of the verse alignments and target words usage
  * @param {ShowPopOverCB} showPopover - callback function to display a popover
  * @param {string} sourceLanguage - ID of source language
  * @param {string} sourceLanguageFont - font to use for source
@@ -265,8 +317,8 @@ const indexComparator = (a, b) => a.index - b.index;
  * @param {string} targetLanguageFont - font to use for target
  * @param {string} targetFontSizePercent - percentage size f
  * @param {TranslateCB} translate - callback to look up localized text
- * @param {array} verseAlignments - initial verse alignment
- * @param {array} wordListWords - initial list of target words in wordbank
+ * @param {array[AlignmentType]} verseAlignments - initial verse alignment
+ * @param {array[TargetWordBankType]} targetWords - list of target words for use in wordbank
  * @return {JSX.Element}
  * @constructor
  */
@@ -284,11 +336,12 @@ const WordAligner = ({
   targetFontSizePercent = 100,
   translate,
   verseAlignments,
-  wordListWords,
+  targetWords,
   }) => {
-  const [dragToken, setDragToken] = useState(null);
+  const [dragToken, setDragToken_] = useState(null);
+  const [dragItemType, setDragItemType] = useState(null);
   const [verseAlignments_, setVerseAlignments] = useState(verseAlignments);
-  const [wordListWords_, setWordListWords] = useState(wordListWords);
+  const [targetWords_, setTargetWords] = useState(targetWords);
   const [resetDrag, setResetDrag] = useState(false);
 
   const over = false;
@@ -298,6 +351,15 @@ const WordAligner = ({
   const setToolSettings = () => {
     console.log('setToolSettings')
   };
+
+  /**
+   * on start of token drag, save drag token and drag item type
+   * @param {object} token
+   */
+  function setDragToken(token) {
+   setDragToken_(token)
+   setDragItemType(token.type || types.SECONDARY_WORD)
+  }
 
   /**
    * callback for each alignment change so that app can keep track of last change or update valid alignment badge
@@ -310,7 +372,7 @@ const WordAligner = ({
     onChange && onChange({
       ...results,
       verseAlignments: verseAlignments_,
-      wordListWords: wordListWords_,
+      targetWords: targetWords_,
       contextId,
     });
   }
@@ -332,18 +394,18 @@ const WordAligner = ({
     console.log('handleUnalignTargetToken')
     const source=GRID
     const destination=TARGET_WORD_BANK
-    const { found, alignment } = findAlignment(verseAlignments_, targetToken);
-    if (alignment >= 0) {
+    const { tokenIndex, alignmentIndex } = findAlignment(verseAlignments_, targetToken);
+    if (alignmentIndex >= 0) {
       const verseAlignments = [...verseAlignments_]
-      verseAlignments[alignment].targetNgram.splice(found, 1);
+      verseAlignments[alignmentIndex].targetNgram.splice(tokenIndex, 1);
       updateVerseAlignments(verseAlignments);
     }
 
-    const found_ = findInWordList(wordListWords_, alignmentToToken(targetToken));
+    const found_ = findInWordList(targetWords_, alignmentToToken(targetToken));
     if (found_ >= 0) {
-      const wordListWords = [...wordListWords_]
+      const wordListWords = [...targetWords_]
       wordListWords[found_].disabled = false;
-      setWordListWords(wordListWords);
+      setTargetWords(wordListWords);
     }
     setResetDrag(true) // clear the selected words
     doChangeCallback({
@@ -376,11 +438,11 @@ const WordAligner = ({
         }
       } else { // coming from word list
         source=TARGET_WORD_BANK
-        const found = findInWordList(wordListWords_, targetToken);
+        const found = findInWordList(targetWords_, targetToken);
         if (found >= 0) {
-          const wordListWords = [...wordListWords_]
+          const wordListWords = [...targetWords_]
           wordListWords[found].disabled = true;
-          setWordListWords(wordListWords);
+          setTargetWords(wordListWords);
           targetToken = tokenToAlignment(targetToken);
         }
         setResetDrag(true)
@@ -389,7 +451,7 @@ const WordAligner = ({
       dest.targetNgram.push(targetToken);
       updateVerseAlignments(verseAlignments);
       doChangeCallback({
-        type: ALIGN_BOTTOM_WORD,
+        type: ALIGN_TARGET_WORD,
         source,
         destination,
       });
@@ -400,17 +462,17 @@ const WordAligner = ({
    * moves the primary token to a different alignment or split off as new alignment.
    *    if the source alignment is now empty of primary words, then move all the target words as well.
    * @param {object} primaryToken
-   * @param alignmentIndex
+   * @param destAlignmentIndex
    * @param srcAlignmentIndex
    * @param startNew
    */
-  const handleAlignPrimaryToken = (primaryToken, alignmentIndex, srcAlignmentIndex, startNew) => {
-    console.log('handleAlignPrimaryToken', {alignmentIndex, srcAlignmentIndex, startNew})
-    if ((alignmentIndex !== srcAlignmentIndex) || startNew) {
-      let destination=MERGE_ALIGNMENTS
+  const handleAlignSourceToken = (primaryToken, destAlignmentIndex, srcAlignmentIndex, startNew) => {
+    console.log('handleAlignSourceToken', {alignmentIndex: destAlignmentIndex, srcAlignmentIndex, startNew})
+    if ((destAlignmentIndex !== srcAlignmentIndex) || startNew) {
+      let destination=MERGE_ALIGNMENT_CARDS
       const source=GRID
       let verseAlignments = [...verseAlignments_]
-      let dest = verseAlignments[alignmentIndex];
+      let dest = verseAlignments[destAlignmentIndex];
       let src = null;
       let found = -1;
       let emptySource = false;
@@ -424,8 +486,8 @@ const WordAligner = ({
       }
 
       if (startNew) { // insert word into a new alignment
-        destination = NEW_ALIGNMENT;
-        const newPosition = alignmentIndex + 1;
+        destination = CREATE_NEW_ALIGNMENT_CARD;
+        const newPosition = destAlignmentIndex + 1;
         dest = {
           index: newPosition,
           isSuggestion: false,
@@ -450,7 +512,7 @@ const WordAligner = ({
       }
       updateVerseAlignments(verseAlignments);
       doChangeCallback({
-        type: ALIGN_TOP_WORDS,
+        type: ALIGN_SOURCE_WORD,
         source,
         destination,
       });
@@ -479,7 +541,7 @@ const WordAligner = ({
     <div style={styles.container}>
       <div style={styles.wordListContainer}>
         <WordList
-          words={wordListWords_}
+          words={targetWords_}
           verse={contextId.reference.verse}
           isOver={over}
           chapter={contextId.reference.chapter}
@@ -503,13 +565,14 @@ const WordAligner = ({
         reset={resetDrag}
         toolsSettings={toolsSettings}
         onDropTargetToken={handleAlignTargetToken}
-        onDropSourceToken={handleAlignPrimaryToken}
+        onDropSourceToken={handleAlignSourceToken}
         contextId={contextId}
         isHebrew={isHebrew}
         showPopover={showPopover}
         loadLexiconEntry={loadLexiconEntry}
         targetLanguageFont={targetLanguageFont}
         dragToken={dragToken}
+        dragItemType={dragItemType}
         setDragToken={setDragToken}
       />
 
@@ -531,6 +594,6 @@ WordAligner.propTypes = {
   targetFontSizePercent: PropTypes.number,
   translate: PropTypes.func.isRequired,
   verseAlignments: PropTypes.array.isRequired,
-  wordListWords: PropTypes.array.isRequired,
+  targetWords: PropTypes.array.isRequired,
 };
 export default WordAligner;
